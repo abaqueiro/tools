@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Magic reading</title>
+<style>
+/*
+	position: fixed;
+	top: 4px;
+	left: 4px;
+	right: 4px;
+	bottom: 4px;
+	border: 2px solid blue;
+	text-align: center;
+	overflow: auto;
+*/
+* {
+	box-sizing: border-box;
+}
+html {
+	margin: 0;
+	height: 100%;
+}
+body {
+	margin: 0;
+	height: 100%;
+}
+table {
+	border: 2px solid gray;
+}
+td {
+}
+input:focus
+, button:focus
+, textarea:focus {
+	box-shadow: 0 0 10px 10px orange;
+}
+</style>
+</head>
+<body>
+
+<table width="100%" height="100%" align="center" style="">
+	<tr id="step1">
+		<!-- vamos a swapear el text area por el render area -->
+		<td id="step1" height="95%">
+			Type your text here:<br>
+			<textarea id="txt1" style="width: 100%; height: 98%;"></textarea>
+		</td>
+	</tr>
+	<tr id="step2" style="display: none;">
+		<td id="frame" height="95%" align="center" style="font-size: 36pt;">- STARTING -</td>
+	</tr>
+	<!-- los controles se van quedar fijos -->
+	<tr id="controls">
+		<td align="center">
+			<button id="btnPlay" style="font-size: 20pt;">Play</button> |
+			<button id="btnPause" style="font-size: 20pt;">Pause</button> |
+			frame interval
+			<input type="number" id="txtWaitTime" style="text-align: right; font-size: 14pt; width: 4em;" value="500">ms |
+			min. characters per frame
+			<input type="number" id="txtMinCharsPerFrame" style="text-align: right; font-size: 14pt; width: 3em;" value="8">ms |
+			<button id="btnStop" style="font-size: 20pt;">Stop</button>
+		</td>
+	</tr>
+</table>
+</body>
+<script>
+
+// CONFIG VARIABLES
+var min_chars_per_frame = 7
+var wait_time
+
+// STATE VARIABLES
+var word_index
+var pid
+var state = 'zero'
+
+function g(id){
+	return document.getElementById(id);
+}
+
+var step1 = g('step1')
+var step2 = g('step2')
+var txt = g('txt1')
+var btn = g('btnPlay')
+var btnPause = g('btnPause')
+var btnStop = g('btnStop')
+var frame = g('frame')
+var txtWaitTime = g('txtWaitTime')
+
+
+
+function render_word(){
+	var msg
+	if ( word_index < word_A.length ){
+		msg = word_A[ word_index ]; word_index++;
+		while( msg.length < min_chars_per_frame && word_index < word_A.length ){
+			msg += ' ' + word_A[ word_index ]; word_index++;
+		}
+		frame.innerHTML = msg
+	} else {
+		if ( pid ) {
+			clearInterval(pid); pid = 0
+			//console.log('removed frame loop because of END')
+			state = 'zero'
+		}
+		frame.innerHTML = '- THE END -'
+		txt.value = ''
+		step2.style.display = 'none'
+		step1.style.display = null
+		txt.focus()
+	}
+}
+
+function read_wait_time(){
+	//console.log('read_wait_time:')
+	var wait_time_wanted = parseInt( txtWaitTime.value )
+	if ( wait_time_wanted >= 20 && wait_time_wanted <= 20000 ){
+		wait_time = wait_time_wanted
+		if ( state == 'playing' ){
+			if ( pid ){
+				clearInterval(pid)
+				//console.log('removed frame loop because of change in wait time')
+				setup_frame_loop()
+			}
+		}
+	}
+	txtWaitTime.value = wait_time
+	//console.log('wait_time='+wait_time)
+}
+
+function read_min_chars_per_frame(){
+	//console.log('read_min_chars_per_frame:')
+	var wanted = parseInt( txtMinCharsPerFrame.value )
+	if ( wanted > 0 && wanted <= 40 ){
+		min_chars_per_frame = wanted
+	} else {
+		min_chars_per_frame = 8
+	}
+	txtMinCharsPerFrame.value = min_chars_per_frame
+	//console.log('min_chars_per_frame=' + min_chars_per_frame)
+}
+
+function setup_frame_loop(){
+	//console.log('setup_frame_loop: render_word and setting up frame loop every ' + wait_time)
+	render_word()
+	pid = setInterval( function(){
+		render_word()
+	}, wait_time )
+	state = 'playing'
+}
+
+function play(){
+	if ( state == 'zero' ){
+		//console.log('play: zero state, inicializando ... ')
+		read_wait_time()
+		read_min_chars_per_frame()
+		// split text by space
+		tt = txt.value
+		tt = tt.replaceAll( "\n", ' ' )
+		tt = tt.replace( /\s{2,}/g, ' ' )
+		word_A = tt.split(' ')
+		step1.style.display = 'none'
+		step2.style.display = null
+		word_index = 0
+		setup_frame_loop()
+		state = 'playing'
+
+	} else if ( state == 'playing' ){
+		//console.log('play: playing nada que hacer ... ')
+		return
+
+	} else if ( state == 'paused' ){
+		//console.log('play: paused, continuando ...')
+		setup_frame_loop()
+
+	}
+}
+
+function pause(){
+	if ( state == 'zero'
+		|| state == 'paused'
+	){
+		//console.log('pause: nothing to do ...')
+		return
+
+	} else if ( state == 'playing' ){
+		//console.log('pause: removing frame loop ...')
+		if (pid){
+			clearInterval(pid); pid = 0
+		}
+		state = 'paused'
+	}
+}
+
+function stop(){
+	//console.log('stop:')
+	if ( state == 'playing'
+		|| state == 'paused'
+	){
+		//console.log('stop: removing frame loop ...')
+		if (pid){
+			clearInterval(pid); pid = 0
+			//console.log('frame loop removed')
+		}
+		step2.style.display = 'none'
+		step1.style.display = null
+		state = 'zero'
+		txt.focus()
+	}
+}
+
+// associate Event Handlers
+btnPlay.onclick = play
+btnStop.onclick = stop
+btnPause.onclick = pause
+
+txtWaitTime.onchange = read_wait_time
+txtMinCharsPerFrame.onchange = read_min_chars_per_frame
+
+txt.focus()
+//btn.focus()
+
+</script>
+</html>
